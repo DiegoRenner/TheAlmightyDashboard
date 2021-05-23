@@ -32,11 +32,13 @@ URLs_crypto.append('https://coinmarketcap.com/currencies/dogecoin/')
 URLs_crypto.append('https://coinmarketcap.com/currencies/grin/')
 URLs_crypto.append('https://coinmarketcap.com/currencies/polygon/')
 URLs_crypto.append('https://coinmarketcap.com/currencies/picoin/')
+num_crypto_URLs=len(URLs_crypto)
 URLs_stocks = []
 URLs_stocks.append('https://www.marketwatch.com/investing/stock/gme')
 URLs_stocks.append('https://www.marketwatch.com/investing/stock/amc')
 URLs_stocks.append('https://www.marketwatch.com/investing/stock/bb')
 URLs_stocks.append('https://www.marketwatch.com/investing/stock/xmrusd')
+num_stocks_URLs=len(URLs_stocks)
 #URL[1] = 'https://coinmarketcap.com/currencies/monero/'
 #headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36'}
 #headers = {'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.212 Safari/537.36',
@@ -68,7 +70,7 @@ def getPrice_stocks(URL):
     #display.start()
     options = webdriver.ChromeOptions()
     options.add_argument('--no-sandbox')
-    #options.add_argument('--window-size=640,480')
+    options.add_argument('--window-size=640,480')
     options.add_argument('--headless')
     options.add_argument('--disable-gpu')
     driver = webdriver.Chrome('/home/diego/Programming/dashboard/chromedriver', options=options) 
@@ -91,39 +93,40 @@ crypto_table_pad = curses.newwin(height,int(width/2),header_height,0)
 stocks_table_pad = curses.newwin(height,int(width/2),header_height,int(width/2))
 title_window.addstr("The Almighty Dashboard \n")
 title_window.refresh()
+names_crypto = ["unloaded"]*num_crypto_URLs
+prices_crypto = [0.0]*num_crypto_URLs
+names_stocks = ["unloaded"]*num_stocks_URLs
+prices_stocks = ["unloaded"]*num_stocks_URLs
 while 1:
     start = time.time()
-    names_crypto = []
-    prices_crypto = []
-    names_stocks = []
-    prices_stocks = []
-    for url in URLs_crypto:
+    for i, url in enumerate(URLs_crypto):
         name, price = getPrice_crypto(url)
-        names_crypto.append(name)
-        prices_crypto.append(price)
-    for url in URLs_stocks:
+        names_crypto[i] = name
+        prices_crypto[i] = price
+        table_crypto = tabulate([[names_crypto[i], prices_crypto[i]] for i in np.arange(len(names_crypto))], 
+            headers=['Symbol', 'Price'], showindex="always")
+        crypto_table_pad.clear()
+        crypto_table_pad.addstr(table_crypto)
+        crypto_table_pad.refresh()
+    for i, url in enumerate(URLs_stocks):
         name, price = getPrice_stocks(url)
-        names_stocks.append(name)
-        prices_stocks.append(price)
+        names_stocks[i] = name
+        prices_stocks[i] = price
+        table_stocks = tabulate([[names_stocks[i], "$" + prices_stocks[i]] for i in np.arange(len(names_stocks))], 
+            headers=['Symbol', 'Price'], showindex="always")
+        stocks_table_pad.clear()
+        stocks_table_pad.addstr(table_stocks)
+        stocks_table_pad.refresh()
+        
     #clear()
     #total_string = ""
     #for i in np.arange(len(names)):
     #    total_string += names[i] + "\n"
     #    total_string += prices[i] + "\n"
-    table_crypto = tabulate([[names_crypto[i], prices_crypto[i]] for i in np.arange(len(names_crypto))], 
-            headers=['Symbol', 'Price'], showindex="always")
     #table_crypto.title("Crypto Currencies")
-    table_stocks = tabulate([[names_stocks[i], "$" + prices_stocks[i]] for i in np.arange(len(names_stocks))], 
-        headers=['Symbol', 'Price'], showindex="always")
     #table_stocks.title("Stocks")
     #print("Crypto Currencies")
     #print(table_crypto)
-    crypto_table_pad.clear()
-    stocks_table_pad.clear()
-    crypto_table_pad.addstr(table_crypto)
-    stocks_table_pad.addstr(table_stocks)
-    crypto_table_pad.refresh()
-    stocks_table_pad.refresh()
     #print("\n")
     #print("Stocks")
     #print(table_stocks)
