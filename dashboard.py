@@ -45,7 +45,7 @@ num_stocks_URLs=len(URLs_stocks)
 #        'referer': 'https://www.coinbase.com'}
 #page = requests.get(URL, headers=headers)
 
-clear = lambda: os.system('clear')
+#clear = lambda: os.system('clear')
 size = os.get_terminal_size()
 width = size[0]
 height = size[1]
@@ -101,7 +101,13 @@ prices_stocks = [0.0]*num_stocks_URLs
 elapsed_stocks = [0.0]*num_stocks_URLs
 while 1:
     start = time.time()
+    
     for i, url in enumerate(URLs_crypto):
+        size = os.get_terminal_size()
+        width = size[0]
+        height = size[1]
+        crypto_table_pad = curses.newwin(height,int(width/2),header_height,0)
+        stocks_table_pad = curses.newwin(height,int(width/2),header_height,int(width/2))
         elapsed_crypto[i] = time.time()
         name, price = getPrice_crypto(url)
         names_crypto[i] = name
@@ -117,6 +123,11 @@ while 1:
         stocks_table_pad.addstr(table_stocks)
         stocks_table_pad.refresh()
     for i, url in enumerate(URLs_stocks):
+        size = os.get_terminal_size()
+        width = size[0]
+        height = size[1]
+        crypto_table_pad = curses.newwin(height,int(width/2),header_height,0)
+        stocks_table_pad = curses.newwin(height,int(width/2),header_height,int(width/2))
         elapsed_stocks[i] = time.time()
         name, price = getPrice_stocks(url)
         names_stocks[i] = name
