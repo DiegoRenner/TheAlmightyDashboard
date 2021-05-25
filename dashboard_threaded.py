@@ -9,7 +9,6 @@ import textwrap as tw
 from tabulate import tabulate
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
-#from pyvirtualdisplay import Display
 import curses
 import threading
 from pynput.keyboard import Key, Listener
@@ -64,9 +63,12 @@ names_stocks = ["unloaded"]*num_stocks_URLs
 prices_stocks = [0.0]*num_stocks_URLs
 elapsed_stocks = [0.0]*num_stocks_URLs
 
+# initialize flag for orderly stopping of all threads
+stop_all=False
+
 # define functions for scraping links
 def getPrice_crypto(URL,i,s):
-    while 1:
+    while (not stop_all):
         start = time.time()
         page = requests.get(URL)
         soup = BeautifulSoup(page.content, 'html.parser')
@@ -80,7 +82,7 @@ def getPrice_crypto(URL,i,s):
             time.sleep(s-elapsed)
 
 def getPrice_stocks(URL,i,s):
-    while 1:
+    while (not stop_all):
         start = time.time()
         options = webdriver.ChromeOptions()
         options.add_argument('--no-sandbox')
@@ -89,6 +91,8 @@ def getPrice_stocks(URL,i,s):
         driver = webdriver.Chrome('/home/diego/Programming/dashboard/chromedriver', options=options) 
         driver.get(URL)
         page = driver.page_source
+        driver.close()
+        driver.quit()
         soup = BeautifulSoup(page, 'html.parser')
         price = soup.find_all(class_=re.compile("^value$"), field="Last")[0].get_text()
         name = soup.find(class_="company__ticker").get_text()
@@ -123,6 +127,52 @@ def draw(s):
         if (elapsed<s):
             time.sleep(s-elapsed)
 
+# set update frequency for drawing screen and requesting prices
+update_freq = 3.0
+
+threads_crypto = []
+for i, url in enumerate(URLs_crypto):
+    x = threading.Thread(target=getPrice_crypto, args=(url,i,update_freq,))
+    threads_crypto.append(x)
+    x.start()
+
+threads_stocks = []
+for i, url in enumerate(URLs_stocks):
+    x = threading.Thread(target=getPrice_stocks, args=(url,i,update_freq,))
+    threads_stocks.append(x)
+    x.start()
+
+drawing_thread = threading.Thread(target=draw, args=(update_freq,))
+drawing_thread.start()
+
+#key_listener_thread = threading.Thread(target=key_listener, args=())
+#key_listener_thread.start()
+clear = lambda: os.system('clear')
+
+# define functions key presses
+def on_press(key):
+    try:
+        if key.char == 'q':
+            title_window.clear()
+            title_window.addstr("Shutting down...\n")
+            title_window.refresh()
+            global stop_all
+            stop_all = True
+            for i, url in enumerate(URLs_crypto):
+                threads_crypto[i].join()
+            crypto_stocks = []
+            for i, url in enumerate(URLs_stocks):
+                threads_stocks[i].join()
+            clear()
+            # Stop listener
+            os._exit(1)
+    except AttributeError:
+        flag = 0
+# Collect events until released
+with Listener(
+        on_press=on_press) as listener:
+    listener.join()
+
 #def key_listener():
 #    while True:  # making a loop
 #        try:  # used try so that if user pressed other than the given key error will not be shown
@@ -131,36 +181,6 @@ def draw(s):
 #                os._exit(1)
 #        except:
 #            test = 0  # if user pressed a key other than the given key the l
-
-update_freq = 1.0
-for i, url in enumerate(URLs_crypto):
-    x = threading.Thread(target=getPrice_crypto, args=(url,i,update_freq,))
-    x.start()
-
-for i, url in enumerate(URLs_stocks):
-    x = threading.Thread(target=getPrice_stocks, args=(url,i,update_freq,))
-    x.start()
-
-drawing_thread = threading.Thread(target=draw, args=(update_freq,))
-drawing_thread.start()
-
-#key_listener_thread = threading.Thread(target=key_listener, args=())
-#key_listener_thread.start()
-
-# define functions key presses
-title_window.clear()
-title_window.addstr("The Almighty Dashboard (threads initialized)\n")
-title_window.refresh()
-def on_press(key):
-    print(key)
-    if key == Key.esc:
-        # Stop listener
-        os._exit(1)
-# Collect events until released
-with Listener(
-        on_press=on_press) as listener:
-    listener.join()
-
 
 
 
