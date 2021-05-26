@@ -33,24 +33,6 @@ URLs_crypto.append('https://coinmarketcap.com/currencies/dogecoin/')
 URLs_crypto.append('https://coinmarketcap.com/currencies/grin/')
 URLs_crypto.append('https://coinmarketcap.com/currencies/polygon/')
 URLs_crypto.append('https://coinmarketcap.com/currencies/picoin/')
-URLs_crypto.append('https://coinmarketcap.com/currencies/bitcoin/')
-URLs_crypto.append('https://coinmarketcap.com/currencies/ethereum/')
-URLs_crypto.append('https://coinmarketcap.com/currencies/monero/')
-URLs_crypto.append('https://coinmarketcap.com/currencies/basic-attention-token/')
-URLs_crypto.append('https://coinmarketcap.com/currencies/presearch/')
-URLs_crypto.append('https://coinmarketcap.com/currencies/numeraire/')
-URLs_crypto.append('https://coinmarketcap.com/currencies/the-graph/')
-URLs_crypto.append('https://coinmarketcap.com/currencies/nucypher/')
-URLs_crypto.append('https://coinmarketcap.com/currencies/stellar/')
-URLs_crypto.append('https://coinmarketcap.com/currencies/compound/')
-URLs_crypto.append('https://coinmarketcap.com/currencies/skale-network/')
-URLs_crypto.append('https://coinmarketcap.com/currencies/celo/')
-URLs_crypto.append('https://coinmarketcap.com/currencies/uma/')
-URLs_crypto.append('https://coinmarketcap.com/currencies/ampleforth/')
-URLs_crypto.append('https://coinmarketcap.com/currencies/dogecoin/')
-URLs_crypto.append('https://coinmarketcap.com/currencies/grin/')
-URLs_crypto.append('https://coinmarketcap.com/currencies/polygon/')
-URLs_crypto.append('https://coinmarketcap.com/currencies/picoin/')
 num_crypto_URLs=len(URLs_crypto)
 URLs_stocks = []
 URLs_stocks.append('https://www.marketwatch.com/investing/stock/gme')
@@ -137,11 +119,11 @@ def draw(s):
         size = os.get_terminal_size()
         width = size[0]
         height = size[1]
-        names = names_crypto + names_stocks
-        prices = prices_crypto + prices_stocks
-        elapsed = elapsed_crypto + elapsed_stocks
+        names = names_stocks + names_crypto
+        prices = prices_stocks + prices_crypto
+        elapsed = elapsed_stocks + elapsed_crypto
         table= tabulate([[names[i], prices[i], elapsed[i]] for i in np.arange(len(names))], 
-                headers=['Symbol', 'Price', 'Requested [s] ago'], showindex="always")
+                headers=['Symbol', 'Price', 'max delay[s]'], showindex="always")
         table_pad.clear()
         table_pad.addstr(table)
         global table_pos
