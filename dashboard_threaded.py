@@ -73,14 +73,19 @@ stop_all=False
 def getPrice_crypto(URL,i,s):
     while (not stop_all):
         start = time.time()
-        session = requests_html.HTMLSession()
-        page = session.get(URL)
-        soup = BeautifulSoup(page.content, 'html.parser')
-        price = soup.find(class_=re.compile("^priceValue")).get_text()
-        name = soup.find(class_=re.compile("^nameSymbol")).get_text()
-        prices_crypto[i] = price
-        names_crypto[i] = name
-        start_crypto[i] = start
+
+        try:
+            session = requests_html.HTMLSession()
+            page = session.get(URL)
+            soup = BeautifulSoup(page.content, 'html.parser')
+            price = soup.find(class_=re.compile("^priceValue")).get_text()
+            name = soup.find(class_=re.compile("^nameSymbol")).get_text()
+            prices_crypto[i] = price
+            names_crypto[i] = name
+            start_crypto[i] = start
+        except:
+            prices_crypto[i] = "FAILED"
+            
         end = time.time()
         elapsed = (end-start)
         if (elapsed<s):
@@ -89,14 +94,19 @@ def getPrice_crypto(URL,i,s):
 def getPrice_stocks(URL,i,s):
     while (not stop_all):
         start = time.time()
-        session = requests_html.HTMLSession()
-        page = session.get(URL)
-        soup = BeautifulSoup(page.content, 'html.parser')
-        price = soup.find_all(class_=re.compile("^value$"), field="Last")[0].get_text()
-        name = soup.find(class_="company__ticker").get_text()
-        names_stocks[i] = name
-        prices_stocks[i] = price
-        start_stocks[i] = start
+
+        try:
+            session = requests_html.HTMLSession()
+            page = session.get(URL)
+            soup = BeautifulSoup(page.content, 'html.parser')
+            price = soup.find_all(class_=re.compile("^value$"), field="Last")[0].get_text()
+            name = soup.find(class_="company__ticker").get_text()
+            prices_stocks[i] = "$" + str(price)
+            names_stocks[i] = name
+            start_stocks[i] = start
+        except:
+            prices_stocks[i] = "FAILED"
+
         end = time.time()
         elapsed = (end-start)
         if (elapsed<s):
@@ -113,7 +123,7 @@ def draw(s):
         stocks_table_pad = curses.newwin(height,int(width/2),header_height,int(width/2))
         table_crypto = tabulate([[names_crypto[i], prices_crypto[i], elapsed_crypto[i]] for i in np.arange(len(names_crypto))], 
                 headers=['Symbol', 'Price', 'Requested [s] ago'], showindex="always")
-        table_stocks = tabulate([[names_stocks[i], "$" + str(prices_stocks[i]), elapsed_stocks[i]] for i in np.arange(len(names_stocks))], 
+        table_stocks = tabulate([[names_stocks[i], prices_stocks[i], elapsed_stocks[i]] for i in np.arange(len(names_stocks))], 
                 headers=['Symbol', 'Price', 'Requested [s] ago'], showindex="always")
         crypto_table_pad.clear()
         crypto_table_pad.addstr(table_crypto)
@@ -143,7 +153,8 @@ def timer(s):
 
 
 # set update frequency for drawing screen and requesting prices
-drawing_freq = 0.5
+timer_freq = 0.2
+drawing_freq = 1.0
 update_freq = 5.0
 
 # initialize threads
@@ -159,7 +170,7 @@ for i, url in enumerate(URLs_stocks):
     x.start()
 drawing_thread = threading.Thread(target=draw, args=(drawing_freq,))
 drawing_thread.start()
-timer_thread = threading.Thread(target=timer, args=(drawing_freq,))
+timer_thread = threading.Thread(target=timer, args=(timer_freq,))
 timer_thread.start()
 #key_listener_thread = threading.Thread(target=key_listener, args=())
 #key_listener_thread.start()
