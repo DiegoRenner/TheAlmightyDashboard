@@ -60,9 +60,11 @@ title_window.refresh()
 names_crypto = ["unloaded"]*num_crypto_URLs
 prices_crypto = [0.0]*num_crypto_URLs
 elapsed_crypto = [0.0]*num_crypto_URLs
+start_crypto = [time.time()]*num_crypto_URLs
 names_stocks = ["unloaded"]*num_stocks_URLs
 prices_stocks = [0.0]*num_stocks_URLs
 elapsed_stocks = [0.0]*num_stocks_URLs
+start_stocks = [time.time()]*num_stocks_URLs
 
 # initialize flag for orderly stopping of all threads
 stop_all=False
@@ -78,6 +80,7 @@ def getPrice_crypto(URL,i,s):
         name = soup.find(class_=re.compile("^nameSymbol")).get_text()
         prices_crypto[i] = price
         names_crypto[i] = name
+        start_crypto[i] = start
         end = time.time()
         elapsed = (end-start)
         if (elapsed<s):
@@ -86,29 +89,20 @@ def getPrice_crypto(URL,i,s):
 def getPrice_stocks(URL,i,s):
     while (not stop_all):
         start = time.time()
-        #options = webdriver.ChromeOptions()
-        #options.add_argument('--no-sandbox')
-        #options.add_argument('--headless')
-        #options.add_argument('--disable-gpu')
-        #driver = webdriver.Chrome('/home/diego/Programming/dashboard/chromedriver', options=options) 
-        #driver.get(URL)
-        #page = driver.page_source
-        #driver.close()
-        #driver.quit()
         session = requests_html.HTMLSession()
         page = session.get(URL)
         soup = BeautifulSoup(page.content, 'html.parser')
         price = soup.find_all(class_=re.compile("^value$"), field="Last")[0].get_text()
-        #print(soup.find_all(class_=re.compile("^value$")))
         name = soup.find(class_="company__ticker").get_text()
         names_stocks[i] = name
         prices_stocks[i] = price
+        start_stocks[i] = start
         end = time.time()
         elapsed = (end-start)
         if (elapsed<s):
             time.sleep(s-elapsed)
 
-# define functions for drawing screen
+# define function for drawing screen
 def draw(s):
     while 1:
         start = time.time()
@@ -117,9 +111,9 @@ def draw(s):
         height = size[1]
         crypto_table_pad = curses.newwin(height,int(width/2),header_height,0)
         stocks_table_pad = curses.newwin(height,int(width/2),header_height,int(width/2))
-        table_crypto = tabulate([[names_crypto[i], prices_crypto[i], time.time()-elapsed_crypto[i] if elapsed_crypto[i] > 0.0 else 0.0] for i in np.arange(len(names_crypto))], 
+        table_crypto = tabulate([[names_crypto[i], prices_crypto[i], elapsed_crypto[i]] for i in np.arange(len(names_crypto))], 
                 headers=['Symbol', 'Price', 'Requested [s] ago'], showindex="always")
-        table_stocks = tabulate([[names_stocks[i], "$" + str(prices_stocks[i]), time.time()-elapsed_stocks[i] if elapsed_stocks[i] > 0.0 else 0.0] for i in np.arange(len(names_stocks))], 
+        table_stocks = tabulate([[names_stocks[i], "$" + str(prices_stocks[i]), elapsed_stocks[i]] for i in np.arange(len(names_stocks))], 
                 headers=['Symbol', 'Price', 'Requested [s] ago'], showindex="always")
         crypto_table_pad.clear()
         crypto_table_pad.addstr(table_crypto)
@@ -131,6 +125,22 @@ def draw(s):
         elapsed = (end-start)
         if (elapsed<s):
             time.sleep(s-elapsed)
+            
+# define function for timing last successful request
+def timer(s):
+    while 1:
+        start = time.time()
+        for i, url in enumerate(URLs_crypto):
+            current = time.time()
+            elapsed_crypto[i] = (current-start_crypto[i])
+        for i, url in enumerate(URLs_stocks):
+            current = time.time()
+            elapsed_stocks[i] = (current-start_stocks[i])
+        end = time.time()
+        elapsed = (end-start)
+        if (elapsed<s):
+            time.sleep(s-elapsed)
+
 
 # set update frequency for drawing screen and requesting prices
 drawing_freq = 0.5
@@ -149,19 +159,23 @@ for i, url in enumerate(URLs_stocks):
     x.start()
 drawing_thread = threading.Thread(target=draw, args=(drawing_freq,))
 drawing_thread.start()
+timer_thread = threading.Thread(target=timer, args=(drawing_freq,))
+timer_thread.start()
 #key_listener_thread = threading.Thread(target=key_listener, args=())
 #key_listener_thread.start()
 
 # define clear function to clear terminal before exiting
 clear = lambda: os.system('clear')
 
-# define functions key presses
+# setup key listener
 def on_press(key):
     try:
         if key.char == 'q':
+            # notify user of shutdown process
             title_window.clear()
             title_window.addstr("Shutting down...\n")
             title_window.refresh()
+            # wait for all threads to stop
             global stop_all
             stop_all = True
             for i, url in enumerate(URLs_crypto):
@@ -169,12 +183,14 @@ def on_press(key):
             crypto_stocks = []
             for i, url in enumerate(URLs_stocks):
                 threads_stocks[i].join()
+            # clear screen, reset cursor visibility and close programm
             clear()
-            # Stop listener
-            curses.curs_set(1) # reset cursor visibility
+            curses.curs_set(1)
             os._exit(1)
     except AttributeError:
+        # don't do anything if non char key was pressed
         flag = 0
+
 # Collect events until released
 with Listener(
         on_press=on_press) as listener:
