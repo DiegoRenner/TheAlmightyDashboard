@@ -33,6 +33,24 @@ URLs_crypto.append('https://coinmarketcap.com/currencies/dogecoin/')
 URLs_crypto.append('https://coinmarketcap.com/currencies/grin/')
 URLs_crypto.append('https://coinmarketcap.com/currencies/polygon/')
 URLs_crypto.append('https://coinmarketcap.com/currencies/picoin/')
+URLs_crypto.append('https://coinmarketcap.com/currencies/bitcoin/')
+URLs_crypto.append('https://coinmarketcap.com/currencies/ethereum/')
+URLs_crypto.append('https://coinmarketcap.com/currencies/monero/')
+URLs_crypto.append('https://coinmarketcap.com/currencies/basic-attention-token/')
+URLs_crypto.append('https://coinmarketcap.com/currencies/presearch/')
+URLs_crypto.append('https://coinmarketcap.com/currencies/numeraire/')
+URLs_crypto.append('https://coinmarketcap.com/currencies/the-graph/')
+URLs_crypto.append('https://coinmarketcap.com/currencies/nucypher/')
+URLs_crypto.append('https://coinmarketcap.com/currencies/stellar/')
+URLs_crypto.append('https://coinmarketcap.com/currencies/compound/')
+URLs_crypto.append('https://coinmarketcap.com/currencies/skale-network/')
+URLs_crypto.append('https://coinmarketcap.com/currencies/celo/')
+URLs_crypto.append('https://coinmarketcap.com/currencies/uma/')
+URLs_crypto.append('https://coinmarketcap.com/currencies/ampleforth/')
+URLs_crypto.append('https://coinmarketcap.com/currencies/dogecoin/')
+URLs_crypto.append('https://coinmarketcap.com/currencies/grin/')
+URLs_crypto.append('https://coinmarketcap.com/currencies/polygon/')
+URLs_crypto.append('https://coinmarketcap.com/currencies/picoin/')
 num_crypto_URLs=len(URLs_crypto)
 URLs_stocks = []
 URLs_stocks.append('https://www.marketwatch.com/investing/stock/gme')
@@ -51,8 +69,7 @@ header_height = 2
 screen = curses.initscr()
 curses.curs_set(0) # make cursor invisible
 title_window = curses.newwin(header_height,width,0,0)
-crypto_table_pad = curses.newwin(height,int(width/2),header_height,0)
-stocks_table_pad = curses.newwin(height,int(width/2),header_height,int(width/2))
+table_pad = curses.newpad(2+num_crypto_URLs+num_crypto_URLs,width)
 title_window.addstr("The Almighty Dashboard \n")
 title_window.refresh()
 
@@ -68,6 +85,7 @@ start_stocks = [time.time()]*num_stocks_URLs
 
 # initialize flag for orderly stopping of all threads
 stop_all=False
+table_pos=0
 
 # define functions for scraping links
 def getPrice_crypto(URL,i,s):
@@ -119,18 +137,15 @@ def draw(s):
         size = os.get_terminal_size()
         width = size[0]
         height = size[1]
-        crypto_table_pad = curses.newwin(height,int(width/2),header_height,0)
-        stocks_table_pad = curses.newwin(height,int(width/2),header_height,int(width/2))
-        table_crypto = tabulate([[names_crypto[i], prices_crypto[i], elapsed_crypto[i]] for i in np.arange(len(names_crypto))], 
+        names = names_crypto + names_stocks
+        prices = prices_crypto + prices_stocks
+        elapsed = elapsed_crypto + elapsed_stocks
+        table= tabulate([[names[i], prices[i], elapsed[i]] for i in np.arange(len(names))], 
                 headers=['Symbol', 'Price', 'Requested [s] ago'], showindex="always")
-        table_stocks = tabulate([[names_stocks[i], prices_stocks[i], elapsed_stocks[i]] for i in np.arange(len(names_stocks))], 
-                headers=['Symbol', 'Price', 'Requested [s] ago'], showindex="always")
-        crypto_table_pad.clear()
-        crypto_table_pad.addstr(table_crypto)
-        crypto_table_pad.refresh()
-        stocks_table_pad.clear()
-        stocks_table_pad.addstr(table_stocks)
-        stocks_table_pad.refresh()
+        table_pad.clear()
+        table_pad.addstr(table)
+        global table_pos
+        table_pad.refresh(table_pos,0,header_height,0,height-header_height,width)
         end = time.time()
         elapsed = (end-start)
         if (elapsed<s):
@@ -153,8 +168,8 @@ def timer(s):
 
 
 # set update frequency for drawing screen and requesting prices
-timer_freq = 0.2
-drawing_freq = 1.0
+timer_freq = 0.1
+drawing_freq = 0.1
 update_freq = 5.0
 
 # initialize threads
@@ -180,6 +195,7 @@ clear = lambda: os.system('clear')
 
 # setup key listener
 def on_press(key):
+    # exit when q is pressed
     try:
         if key.char == 'q':
             # notify user of shutdown process
@@ -200,7 +216,23 @@ def on_press(key):
             os._exit(1)
     except AttributeError:
         # don't do anything if non char key was pressed
-        flag = 0
+        pass
+    
+    # scroll with up/down buttons
+    global table_pos
+    try:
+        if key == Key.down:
+            if table_pos < num_crypto_URLs+num_stocks_URLs-(height-header_height-2):
+                table_pos += 1
+    except:
+        pass
+    try:
+        if key == Key.up:
+            if table_pos > 0:
+                table_pos -= 1
+    except:
+        pass
+
 
 # Collect events until released
 with Listener(
