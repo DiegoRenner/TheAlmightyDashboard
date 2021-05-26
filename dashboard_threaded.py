@@ -1,4 +1,4 @@
-import requests
+import requests_html
 from bs4 import BeautifulSoup
 import re
 import time
@@ -49,6 +49,7 @@ header_height = 2
 
 # initialize ncurses screen and windows for the header and tables
 screen = curses.initscr()
+curses.curs_set(0) # make cursor invisible
 title_window = curses.newwin(header_height,width,0,0)
 crypto_table_pad = curses.newwin(height,int(width/2),header_height,0)
 stocks_table_pad = curses.newwin(height,int(width/2),header_height,int(width/2))
@@ -70,12 +71,13 @@ stop_all=False
 def getPrice_crypto(URL,i,s):
     while (not stop_all):
         start = time.time()
-        page = requests.get(URL)
+        session = requests_html.HTMLSession()
+        page = session.get(URL)
         soup = BeautifulSoup(page.content, 'html.parser')
         price = soup.find(class_=re.compile("^priceValue")).get_text()
         name = soup.find(class_=re.compile("^nameSymbol")).get_text()
-        names_crypto[i] = name
         prices_crypto[i] = price
+        names_crypto[i] = name
         end = time.time()
         elapsed = (end-start)
         if (elapsed<s):
@@ -84,17 +86,20 @@ def getPrice_crypto(URL,i,s):
 def getPrice_stocks(URL,i,s):
     while (not stop_all):
         start = time.time()
-        options = webdriver.ChromeOptions()
-        options.add_argument('--no-sandbox')
-        options.add_argument('--headless')
-        options.add_argument('--disable-gpu')
-        driver = webdriver.Chrome('/home/diego/Programming/dashboard/chromedriver', options=options) 
-        driver.get(URL)
-        page = driver.page_source
-        driver.close()
-        driver.quit()
-        soup = BeautifulSoup(page, 'html.parser')
+        #options = webdriver.ChromeOptions()
+        #options.add_argument('--no-sandbox')
+        #options.add_argument('--headless')
+        #options.add_argument('--disable-gpu')
+        #driver = webdriver.Chrome('/home/diego/Programming/dashboard/chromedriver', options=options) 
+        #driver.get(URL)
+        #page = driver.page_source
+        #driver.close()
+        #driver.quit()
+        session = requests_html.HTMLSession()
+        page = session.get(URL)
+        soup = BeautifulSoup(page.content, 'html.parser')
         price = soup.find_all(class_=re.compile("^value$"), field="Last")[0].get_text()
+        #print(soup.find_all(class_=re.compile("^value$")))
         name = soup.find(class_="company__ticker").get_text()
         names_stocks[i] = name
         prices_stocks[i] = price
@@ -128,25 +133,26 @@ def draw(s):
             time.sleep(s-elapsed)
 
 # set update frequency for drawing screen and requesting prices
-update_freq = 3.0
+drawing_freq = 0.5
+update_freq = 5.0
 
+# initialize threads
 threads_crypto = []
 for i, url in enumerate(URLs_crypto):
     x = threading.Thread(target=getPrice_crypto, args=(url,i,update_freq,))
     threads_crypto.append(x)
     x.start()
-
 threads_stocks = []
 for i, url in enumerate(URLs_stocks):
     x = threading.Thread(target=getPrice_stocks, args=(url,i,update_freq,))
     threads_stocks.append(x)
     x.start()
-
-drawing_thread = threading.Thread(target=draw, args=(update_freq,))
+drawing_thread = threading.Thread(target=draw, args=(drawing_freq,))
 drawing_thread.start()
-
 #key_listener_thread = threading.Thread(target=key_listener, args=())
 #key_listener_thread.start()
+
+# define clear function to clear terminal before exiting
 clear = lambda: os.system('clear')
 
 # define functions key presses
@@ -165,6 +171,7 @@ def on_press(key):
                 threads_stocks[i].join()
             clear()
             # Stop listener
+            curses.curs_set(1) # reset cursor visibility
             os._exit(1)
     except AttributeError:
         flag = 0
