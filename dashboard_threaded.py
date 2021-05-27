@@ -7,8 +7,6 @@ import numpy as np
 from termcolor import colored
 import textwrap as tw
 from tabulate import tabulate
-from selenium import webdriver
-from selenium.webdriver.common.keys import Keys
 import curses
 import threading
 from pynput.keyboard import Key, Listener
@@ -41,17 +39,19 @@ URLs_stocks.append('https://www.marketwatch.com/investing/stock/bb')
 URLs_stocks.append('https://www.marketwatch.com/investing/stock/xmrusd')
 num_stocks_URLs=len(URLs_stocks)
 
-# initialize terminal size
+# initialize terminal and header sizes
 size = os.get_terminal_size()
 width = size[0]
 height = size[1]
 header_height = 2
+table_header_height = 2
 
 # initialize ncurses screen and windows for the header and tables
 screen = curses.initscr()
 curses.curs_set(0) # make cursor invisible
 title_window = curses.newwin(header_height,width,0,0)
-table_pad = curses.newpad(2+num_crypto_URLs+num_crypto_URLs,width)
+table_height = 2+num_crypto_URLs+num_stocks_URLs
+table_pad = curses.newpad(table_height,width)
 title_window.addstr("The Almighty Dashboard \n")
 title_window.refresh()
 
@@ -67,7 +67,9 @@ start_stocks = [time.time()]*num_stocks_URLs
 
 # initialize flag for orderly stopping of all threads
 stop_all=False
+# initialize table position for scrolling with arrow keys
 table_pos=0
+resize_lock = threading.Lock()
 
 # define functions for scraping links
 def getPrice_crypto(URL,i,s):
@@ -85,7 +87,7 @@ def getPrice_crypto(URL,i,s):
             start_crypto[i] = start
         except:
             prices_crypto[i] = "FAILED"
-            
+
         end = time.time()
         elapsed = (end-start)
         if (elapsed<s):
@@ -116,33 +118,39 @@ def getPrice_stocks(URL,i,s):
 def draw(s):
     while 1:
         start = time.time()
+        global size, width, height
         size = os.get_terminal_size()
         width = size[0]
         height = size[1]
+        curses.resize_term(height,width)
         names = names_stocks + names_crypto
         prices = prices_stocks + prices_crypto
         elapsed = elapsed_stocks + elapsed_crypto
-        table= tabulate([[names[i], prices[i], elapsed[i]] for i in np.arange(len(names))], 
-                headers=['Symbol', 'Price', 'max delay[s]'], showindex="always")
+        table = tabulate([[names[i], prices[i], elapsed[i]] for i in np.arange(len(names))], 
+                headers=['Symbol', 'Price', 'max delay[ms]'], showindex="always")
+        table_pad.resize(table_height,width)
         table_pad.clear()
         table_pad.addstr(table)
-        global table_pos
-        table_pad.refresh(table_pos,0,header_height,0,height-header_height,width)
+        try:
+            global table_pos
+            table_pad.refresh(table_pos,0,header_height,0,height-header_height-table_header_height,width)
+        except:
+            pass
         end = time.time()
         elapsed = (end-start)
         if (elapsed<s):
             time.sleep(s-elapsed)
-            
+
 # define function for timing last successful request
 def timer(s):
     while 1:
         start = time.time()
         for i, url in enumerate(URLs_crypto):
             current = time.time()
-            elapsed_crypto[i] = (current-start_crypto[i])
+            elapsed_crypto[i] = int(1000*(current-start_crypto[i]))
         for i, url in enumerate(URLs_stocks):
             current = time.time()
-            elapsed_stocks[i] = (current-start_stocks[i])
+            elapsed_stocks[i] = int(1000*(current-start_stocks[i]))
         end = time.time()
         elapsed = (end-start)
         if (elapsed<s):
@@ -199,7 +207,7 @@ def on_press(key):
     except AttributeError:
         # don't do anything if non char key was pressed
         pass
-    
+
     # scroll with up/down buttons
     global table_pos
     try:
