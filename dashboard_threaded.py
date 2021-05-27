@@ -10,13 +10,14 @@ from tabulate import tabulate
 import curses
 import threading
 from pynput.keyboard import Key, Listener
+import keyboard
 
 # initialize links to scrape
 URLs_crypto = []
-URLs_crypto.append('https://coinmarketcap.com/currencies/bitcoin/')
-URLs_crypto.append('https://coinmarketcap.com/currencies/ethereum/')
 URLs_crypto.append('https://coinmarketcap.com/currencies/monero/')
 URLs_crypto.append('https://coinmarketcap.com/currencies/basic-attention-token/')
+URLs_crypto.append('https://coinmarketcap.com/currencies/bitcoin/')
+URLs_crypto.append('https://coinmarketcap.com/currencies/ethereum/')
 URLs_crypto.append('https://coinmarketcap.com/currencies/presearch/')
 URLs_crypto.append('https://coinmarketcap.com/currencies/numeraire/')
 URLs_crypto.append('https://coinmarketcap.com/currencies/the-graph/')
@@ -48,7 +49,13 @@ table_header_height = 2
 
 # initialize ncurses screen and windows for the header and tables
 screen = curses.initscr()
+# prevent getkey() from refreshing automatically
+screen.refresh()
+# uncomment for non-blocking getkey()
+screen.nodelay(True) 
 curses.curs_set(0) # make cursor invisible
+curses.noecho()
+screen.keypad(True)
 title_window = curses.newwin(header_height,width,0,0)
 table_height = 2+num_crypto_URLs+num_stocks_URLs
 table_pad = curses.newpad(table_height,width)
@@ -70,6 +77,8 @@ stop_all=False
 # initialize table position for scrolling with arrow keys
 table_pos=0
 resize_lock = threading.Lock()
+# define clear function to clear terminal before exiting
+clear = lambda: os.system('clear')
 
 # define functions for scraping links
 def getPrice_crypto(URL,i,s):
@@ -116,7 +125,7 @@ def getPrice_stocks(URL,i,s):
 
 # define function for drawing screen
 def draw(s):
-    while 1:
+    while (not stop_all):
         start = time.time()
         global size, width, height
         size = os.get_terminal_size()
@@ -133,7 +142,8 @@ def draw(s):
         table_pad.addstr(table)
         try:
             global table_pos
-            table_pad.refresh(table_pos,0,header_height,0,height-header_height-table_header_height,width)
+            # mysterious +1 needed to make scrolling full screen
+            table_pad.refresh(table_pos,0,header_height,0,height-header_height+1,width)
         except:
             pass
         end = time.time()
@@ -143,7 +153,7 @@ def draw(s):
 
 # define function for timing last successful request
 def timer(s):
-    while 1:
+    while (not stop_all):
         start = time.time()
         for i, url in enumerate(URLs_crypto):
             current = time.time()
@@ -155,6 +165,49 @@ def timer(s):
         elapsed = (end-start)
         if (elapsed<s):
             time.sleep(s-elapsed)
+           
+# define keylistener function
+def key_listener():
+    while True:  # making a loop
+        try:
+            key = screen.getkey()
+            try:
+                if str(key) == 'q':  # if key 'q' is pressed 
+                    # notify user of shutdown process
+                    title_window.clear()
+                    title_window.addstr("Shutting down...\n")
+                    title_window.refresh()
+                    # wait for all threads to stop
+                    global stop_all
+                    stop_all = True
+                    for i, url in enumerate(URLs_crypto):
+                        threads_crypto[i].join()
+                    crypto_stocks = []
+                    for i, url in enumerate(URLs_stocks):
+                        threads_stocks[i].join()
+                    # clear screen, reset cursor visibility and close programm
+                    clear()
+                    curses.curs_set(1)
+                    os._exit(1)
+            except:
+                # don't do anything if non char key was pressed
+                pass
+            # scroll with up/down buttons
+            global table_pos
+            try:
+                if str(key) == 'KEY_DOWN':
+                    if table_pos < num_crypto_URLs+num_stocks_URLs-(height-header_height-2):
+                        table_pos += 1
+            except:
+                pass
+            try:
+                if str(key) == 'KEY_UP':
+                    if table_pos > 0:
+                        table_pos -= 1
+            except:
+                pass
+        except:
+            pass
 
 
 # set update frequency for drawing screen and requesting prices
@@ -162,81 +215,72 @@ timer_freq = 0.1
 drawing_freq = 0.1
 update_freq = 5.0
 
-# initialize threads
-threads_crypto = []
-for i, url in enumerate(URLs_crypto):
-    x = threading.Thread(target=getPrice_crypto, args=(url,i,update_freq,))
-    threads_crypto.append(x)
-    x.start()
-threads_stocks = []
-for i, url in enumerate(URLs_stocks):
-    x = threading.Thread(target=getPrice_stocks, args=(url,i,update_freq,))
-    threads_stocks.append(x)
-    x.start()
-drawing_thread = threading.Thread(target=draw, args=(drawing_freq,))
-drawing_thread.start()
-timer_thread = threading.Thread(target=timer, args=(timer_freq,))
-timer_thread.start()
-#key_listener_thread = threading.Thread(target=key_listener, args=())
-#key_listener_thread.start()
+if __name__ == '__main__':
+    # initialize threads
+    threads_crypto = []
+    for i, url in enumerate(URLs_crypto):
+        x = threading.Thread(target=getPrice_crypto, args=(url,i,update_freq,))
+        threads_crypto.append(x)
+        x.start()
+    threads_stocks = []
+    for i, url in enumerate(URLs_stocks):
+        x = threading.Thread(target=getPrice_stocks, args=(url,i,update_freq,))
+        threads_stocks.append(x)
+        x.start()
+    drawing_thread = threading.Thread(target=draw, args=(drawing_freq,))
+    drawing_thread.start()
+    timer_thread = threading.Thread(target=timer, args=(timer_freq,))
+    timer_thread.start()
+    key_listener_thread = threading.Thread(target=key_listener, args=())
+    key_listener_thread.start()
 
-# define clear function to clear terminal before exiting
-clear = lambda: os.system('clear')
 
 # setup key listener
-def on_press(key):
-    # exit when q is pressed
-    try:
-        if key.char == 'q':
-            # notify user of shutdown process
-            title_window.clear()
-            title_window.addstr("Shutting down...\n")
-            title_window.refresh()
-            # wait for all threads to stop
-            global stop_all
-            stop_all = True
-            for i, url in enumerate(URLs_crypto):
-                threads_crypto[i].join()
-            crypto_stocks = []
-            for i, url in enumerate(URLs_stocks):
-                threads_stocks[i].join()
-            # clear screen, reset cursor visibility and close programm
-            clear()
-            curses.curs_set(1)
-            os._exit(1)
-    except AttributeError:
-        # don't do anything if non char key was pressed
-        pass
+#def on_press(key):
+#    # exit when q is pressed
+#    try:
+#        if key.char == 'q':
+#            # notify user of shutdown process
+#            title_window.clear()
+#            title_window.addstr("Shutting down...\n")
+#            title_window.refresh()
+#            # wait for all threads to stop
+#            global stop_all
+#            stop_all = True
+#            for i, url in enumerate(URLs_crypto):
+#                threads_crypto[i].join()
+#            crypto_stocks = []
+#            for i, url in enumerate(URLs_stocks):
+#                threads_stocks[i].join()
+#            # clear screen, reset cursor visibility and close programm
+#            clear()
+#            curses.curs_set(1)
+#            os._exit(1)
+#    except AttributeError:
+#        # don't do anything if non char key was pressed
+#        pass
+#
+#    # scroll with up/down buttons
+#    global table_pos
+#    try:
+#        if key == Key.down:
+#            if table_pos < num_crypto_URLs+num_stocks_URLs-(height-header_height-2):
+#                table_pos += 1
+#    except:
+#        pass
+#    try:
+#        if key == Key.up:
+#            if table_pos > 0:
+#                table_pos -= 1
+#    except:
+#        pass
+#
+#
+## Collect events until released
+#with Listener(
+#        on_press=on_press) as listener:
+#    listener.join()
 
-    # scroll with up/down buttons
-    global table_pos
-    try:
-        if key == Key.down:
-            if table_pos < num_crypto_URLs+num_stocks_URLs-(height-header_height-2):
-                table_pos += 1
-    except:
-        pass
-    try:
-        if key == Key.up:
-            if table_pos > 0:
-                table_pos -= 1
-    except:
-        pass
-
-
-# Collect events until released
-with Listener(
-        on_press=on_press) as listener:
-    listener.join()
-
-#def key_listener():
-#    while True:  # making a loop
-#        try:  # used try so that if user pressed other than the given key error will not be shown
-#            if keyboard.is_pressed('q'):  # if key 'q' is pressed 
-#                print("test")
-#                os._exit(1)
-#        except:
-#            test = 0  # if user pressed a key other than the given key the l
 
 
 
