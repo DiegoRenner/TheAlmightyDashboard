@@ -122,10 +122,9 @@ class DataGrabber():
                 session = requests_html.HTMLSession()
                 page = session.get(URL)
                 soup = BeautifulSoup(page.content, 'html.parser')
-                #print(soup)
                 price = soup.find(class_=re.compile("^priceValue")).get_text()
                 name = soup.find(class_=re.compile("^nameSymbol")).get_text()
-                self.prices_coinmarketcap[i] = float(price.replace("$",""))
+                self.prices_coinmarketcap[i] = float(price.replace("$","").replace(",",""))
                 self.names_coinmarketcap[i] = name
                 self.start_coinmarketcap[i] = start
             except:
@@ -147,7 +146,7 @@ class DataGrabber():
                 soup = BeautifulSoup(page.content, 'html.parser')
                 price = soup.find_all(class_=re.compile("^value$"), field="Last")[0].get_text()
                 name = soup.find(class_="company__ticker").get_text()
-                self.prices_marketwatch[i] = float(price.replace("$",""))
+                self.prices_marketwatch[i] = float(price.replace("$","").replace(",",""))
                 self.names_marketwatch[i] = name
                 self.start_marketwatch[i] = start
             except:
@@ -168,7 +167,7 @@ class DataGrabber():
                 page = session.get(
                     'https://api.moneroocean.stream/miner/' + monero_wallet_address + '/stats')
                 w = Wallet(JSONRPCWallet(port=28088))
-                balance = float(page.json()['amtDue'] / 1000000000000) + float(w.balance())
+                balance = float(page.json()['amtDue']) / 1000000000000 + float(w.balance())
                 self.balance_monero_wallets[i] = balance
                 self.names_monero_wallets[i] = "XMR"
                 self.values_monero_wallets[i] = self.prices_coinmarketcap[self.names_coinmarketcap.index("XMR")]*balance
