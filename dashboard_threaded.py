@@ -1,44 +1,41 @@
-import requests_html
-from bs4 import BeautifulSoup
-import re
+import sys
 import time
 import os
 import numpy as np
-from termcolor import colored
-import textwrap as tw
-from tabulate import tabulate
 import curses
 import threading
+from init_data_sources import DataSourceInitializer
+from data_grabbers import DataGrabber
 from pynput.keyboard import Key, Listener
 import keyboard
 
-# initialize links to scrape
-URLs_crypto = []
-URLs_crypto.append('https://coinmarketcap.com/currencies/monero/')
-URLs_crypto.append('https://coinmarketcap.com/currencies/basic-attention-token/')
-URLs_crypto.append('https://coinmarketcap.com/currencies/bitcoin/')
-URLs_crypto.append('https://coinmarketcap.com/currencies/ethereum/')
-URLs_crypto.append('https://coinmarketcap.com/currencies/presearch/')
-URLs_crypto.append('https://coinmarketcap.com/currencies/numeraire/')
-URLs_crypto.append('https://coinmarketcap.com/currencies/the-graph/')
-URLs_crypto.append('https://coinmarketcap.com/currencies/nucypher/')
-URLs_crypto.append('https://coinmarketcap.com/currencies/stellar/')
-URLs_crypto.append('https://coinmarketcap.com/currencies/compound/')
-URLs_crypto.append('https://coinmarketcap.com/currencies/skale-network/')
-URLs_crypto.append('https://coinmarketcap.com/currencies/celo/')
-URLs_crypto.append('https://coinmarketcap.com/currencies/uma/')
-URLs_crypto.append('https://coinmarketcap.com/currencies/ampleforth/')
-URLs_crypto.append('https://coinmarketcap.com/currencies/dogecoin/')
-URLs_crypto.append('https://coinmarketcap.com/currencies/grin/')
-URLs_crypto.append('https://coinmarketcap.com/currencies/polygon/')
-URLs_crypto.append('https://coinmarketcap.com/currencies/picoin/')
-num_crypto_URLs=len(URLs_crypto)
-URLs_stocks = []
-URLs_stocks.append('https://www.marketwatch.com/investing/stock/gme')
-URLs_stocks.append('https://www.marketwatch.com/investing/stock/amc')
-URLs_stocks.append('https://www.marketwatch.com/investing/stock/bb')
-URLs_stocks.append('https://www.marketwatch.com/investing/stock/xmrusd')
-num_stocks_URLs=len(URLs_stocks)
+if len(sys.argv) > 1:
+    path = sys.argv[1]
+else:
+    path = "config_no_accounts.json"
+
+dataSourceInitialier = DataSourceInitializer(path)
+
+set_monero_wallet_addresses, set_uphold_token, set_coinbase_api, \
+set_marketwatch_urls, set_coinmarketcap_urls = \
+    dataSourceInitialier.get_active_data_sources()
+data_sources_dict = dataSourceInitialier.data_sources_dict
+data_grabber = DataGrabber(data_sources_dict)
+
+num_monero_wallet_addresses = data_sources_dict["num_monero_wallet_addresses"]
+monero_wallet_addresses = data_sources_dict["monero_wallet_addresses"]
+num_uphold_cards = data_sources_dict["num_uphold_cards"]
+uphold_token = data_sources_dict["uphold_token"]
+uphold_cards = data_sources_dict["uphold_cards"]
+num_coinbase_currencies = data_sources_dict["num_coinbase_currencies"]
+coinbase_api_key = data_sources_dict["coinbase_api_key"]
+coinbase_api_secret = data_sources_dict["coinbase_api_secret"]
+coinbase_currencies = data_sources_dict["coinbase_currencies"]
+
+num_marketwatch_urls = data_sources_dict["num_marketwatch_urls"]
+marketwatch_urls = data_sources_dict["marketwatch_urls"]
+num_coinmarketcap_urls = data_sources_dict["num_coinmarketcap_urls"]
+coinmarketcap_urls = data_sources_dict["coinmarketcap_urls"]
 
 # initialize terminal and header sizes
 size = os.get_terminal_size()
@@ -46,31 +43,55 @@ width = size[0]
 height = size[1]
 header_height = 2
 table_header_height = 2
+column_spacing = 4
+max_table_pos = 0
 
 # initialize ncurses screen and windows for the header and tables
 screen = curses.initscr()
 # prevent getkey() from refreshing automatically
 screen.refresh()
-# uncomment for non-blocking getkey()
-screen.nodelay(True) 
+# uncomment for non-blocking getkey(), seems to only make the programm less efficient
+#screen.nodelay(True)
 curses.curs_set(0) # make cursor invisible
+# prevent registered input from being output to screen
 curses.noecho()
+# enable keys like arrow keys to be registered
 screen.keypad(True)
+
 title_window = curses.newwin(header_height,width,0,0)
-table_height = 2+num_crypto_URLs+num_stocks_URLs
-table_pad = curses.newpad(table_height,width)
 title_window.addstr("The Almighty Dashboard \n")
 title_window.refresh()
+bg_window = curses.newwin(height,width,0,0)
+
+ticker_table_height = 2+num_marketwatch_urls+num_coinmarketcap_urls
+ticker_table_width = int(width/2)
+column1_height = height-header_height
+column1_width = ticker_table_width+column_spacing
+column1_pad = curses.newpad(ticker_table_height, ticker_table_width)
+
+balance_table_height = 2+num_monero_wallet_addresses+num_coinbase_currencies+num_uphold_cards+1
+balance_table_width = int(width/2)
+column2_height = height-header_height
+column2_width = width-column1_width
+column2_pad = curses.newpad(height, balance_table_width)
 
 # initialize storage for data
-names_crypto = ["unloaded"]*num_crypto_URLs
-prices_crypto = [0.0]*num_crypto_URLs
-elapsed_crypto = [0.0]*num_crypto_URLs
-start_crypto = [time.time()]*num_crypto_URLs
-names_stocks = ["unloaded"]*num_stocks_URLs
-prices_stocks = [0.0]*num_stocks_URLs
-elapsed_stocks = [0.0]*num_stocks_URLs
-start_stocks = [time.time()]*num_stocks_URLs
+#names_coinmarketcap = ["unloaded"] * num_crypto_URLs
+#prices_coinmarketcap = [0.0] * num_crypto_URLs
+#elapsed_coinmarketcap = [0.0] * num_crypto_URLs
+#start_coinmarketcap = [time.time()] * num_crypto_URLs
+#names_marketwatch = ["unloaded"] * num_stocks_URLs
+#prices_stoc = [0.0]*num_stocks_URLs
+#elapsed_stocks = [0.0]*num_stocks_URLs
+#start_stocks = [time.time()]*num_stocks_URLs
+#num_owned = 3
+#names_owned = ["unloaded"]*num_owned
+#names_owned[0] = "XMR"
+#names_owned[1] = "BAT"
+#outstanding = [0.0]*num_owned
+#balance = [0.0]*num_owned
+#total = [0.0]*num_owned
+#MO_data = ["test"]*2
 
 # initialize flag for orderly stopping of all threads
 stop_all=False
@@ -81,91 +102,153 @@ resize_lock = threading.Lock()
 clear = lambda: os.system('clear')
 
 # define functions for scraping links
-def getPrice_crypto(URL,i,s):
-    while (not stop_all):
-        start = time.time()
-
-        try:
-            session = requests_html.HTMLSession()
-            page = session.get(URL)
-            soup = BeautifulSoup(page.content, 'html.parser')
-            price = soup.find(class_=re.compile("^priceValue")).get_text()
-            name = soup.find(class_=re.compile("^nameSymbol")).get_text()
-            prices_crypto[i] = price
-            names_crypto[i] = name
-            start_crypto[i] = start
-        except:
-            prices_crypto[i] = "FAILED"
-
-        end = time.time()
-        elapsed = (end-start)
-        if (elapsed<s):
-            time.sleep(s-elapsed)
-
-def getPrice_stocks(URL,i,s):
-    while (not stop_all):
-        start = time.time()
-
-        try:
-            session = requests_html.HTMLSession()
-            page = session.get(URL)
-            soup = BeautifulSoup(page.content, 'html.parser')
-            price = soup.find_all(class_=re.compile("^value$"), field="Last")[0].get_text()
-            name = soup.find(class_="company__ticker").get_text()
-            prices_stocks[i] = "$" + str(price)
-            names_stocks[i] = name
-            start_stocks[i] = start
-        except:
-            prices_stocks[i] = "FAILED"
-
-        end = time.time()
-        elapsed = (end-start)
-        if (elapsed<s):
-            time.sleep(s-elapsed)
 
 # define function for drawing screen
-def draw(s):
+def draw(s, threaded=True):
+    prev_balance_table_width = 0
+    prev_ticker_table_width = 0
+    prev_table_pos = 0
+    prev_height = 0
+    prev_width = 0
     while (not stop_all):
         start = time.time()
         global size, width, height
-        size = os.get_terminal_size()
+        if threaded:
+            size = os.get_terminal_size()
         width = size[0]
         height = size[1]
+        column_width = int(width/2)
         curses.resize_term(height,width)
-        names = names_stocks + names_crypto
-        prices = prices_stocks + prices_crypto
-        elapsed = elapsed_stocks + elapsed_crypto
-        table = tabulate([[names[i], prices[i], elapsed[i]] for i in np.arange(len(names))], 
-                headers=['Symbol', 'Price', 'max delay[ms]'], showindex="always")
-        table_pad.resize(table_height,width)
-        table_pad.clear()
-        table_pad.addstr(table)
-        try:
-            global table_pos
-            # mysterious +1 needed to make scrolling full screen
-            table_pad.refresh(table_pos,0,header_height,0,height-header_height+1,width)
-        except:
-            pass
+        ticker_table = data_grabber.get_ticker_table()
+        ticker_table_width = int(np.ceil(len(ticker_table)/ticker_table_height))
+        balance_table = data_grabber.get_balance_table()
+        balance_table_widths = [balance_table.rsplit("\n")[i].__len__() for i in np.arange(len(balance_table.rsplit("\n")))]
+        balance_table_width = max(balance_table_widths)+1
+        #balance_table_width = balance_table.rsplit("\n")[0].__len__()+1
+        ticker_table_widths = [ticker_table.rsplit("\n")[i].__len__() for i in np.arange(len(ticker_table.rsplit("\n")))]
+        ticker_table_width = max(ticker_table_widths)+1
+        #ticker_table_width = ticker_table.rsplit("\n")[0].__len__()+1
+
+        #print(balance_table)
+        #print(balance_table_widths)
+        #print(balance_table_width)
+
+        if(not threaded):
+            break
+        #try:
+        #except:
+       #     pass
+        drawing_width = balance_table_width+ticker_table_width+column_spacing
+        #try:
+        ticker_table_draw_height = ticker_table_height + header_height
+        if ticker_table_height + header_height >= height:
+            ticker_table_draw_height = height-1
+        balance_table_draw_height = balance_table_height + header_height
+        if balance_table_height + header_height >= height:
+            balance_table_draw_height = height-1
+
+
+        min_width = max(ticker_table_width, balance_table_width)
+        min_height = header_height
+        global table_pos
+        global max_table_pos
+        # mysterious +1 needed to make scrolling full screen
+        #if prev_ticker_table_width != ticker_table_width or prev_balance_table_width != balance    _tab#le_width or prev_table_pos != table_pos or prev_width != width or prev_height != height:
+        #    #screen.clear()
+        #    #screen.refresh()
+        #    bg_window.clear()
+        #    bg_window.refresh()
+        #    title_window.clear()
+        #    title_window.addstr("The Almighty Dashboard \n")
+        #    title_window.refresh()
+        if drawing_width < width and min_height < height:
+            column1_height = height - header_height
+            column1_width = ticker_table_width + column_spacing
+            column2_height = height - header_height
+            column2_width = width - column1_width
+            # multiply by two so that no leftovers stay on screen
+            column1_height = 2*max(height - header_height, ticker_table_height)
+            #column1_width = max(ticker_table_width + column_spacing,ticker_table_width)
+            column2_height = 2*max(height - header_height, balance_table_height)
+            #column2_width = max(width - column1_width, ticker_table_width)
+
+            #add -1 for tolerance when resizing
+            column1_bottom = height-1
+            #column1_bottom = max(height, header_height+ticker_table_height+1)
+            column1_right = ticker_table_width + column_spacing
+            column2_bottom = height-1
+            #column2_bottom = max(height, header_height+balance_table_height+1)
+            column2_right = width
+
+            column1_pad.resize(column1_height, column1_width)
+            column1_pad.clear()
+            column1_pad.addstr(ticker_table)
+
+            column2_pad.resize(column2_height, column2_width)
+            column2_pad.clear()
+            column2_pad.addstr(balance_table)
+
+            title_window.resize(header_height,width)
+            title_window.clear()
+            title_window.addstr("The Almighty Dashboard \n")
+            title_window.refresh()
+            try:
+                column1_pad.refresh(min(table_pos, ticker_table_height), 0, header_height, 0, column1_bottom, column1_right)
+                column2_pad.refresh(min(table_pos, balance_table_height), 0, header_height, column1_right, column2_bottom, column2_right)
+            except:
+                pass
+            max_table_pos = max(ticker_table_height,balance_table_height)+header_height-height if max(ticker_table_height,balance_table_height)+header_height > height else 0
+        elif min_width < width and min_height < height:
+            title_window.resize(header_height,width)
+            title_window.clear()
+            title_window.addstr("The Almighty Dashboard \n")
+            title_window.refresh()
+            table_height = ticker_table_height + balance_table_height + 1
+            # multiply by two so that no leftovers stay on screen
+            column1_height = 2*max(height - header_height, table_height)
+            column1_width = width
+            column2_height = 0
+            column2_width = 0
+            #column1_height = max(height - header_height,table_height)
+            #column1_width = max(width, ticker_table_width, balance_table_width)
+            #column2_height = 0
+            #column2_width = 0
+
+            #add -1 for tolerance when resizing
+            column1_bottom = height-1
+            column1_right = width
+            column2_bottom = 0
+            column2_right = 0
+            column1_pad.resize(column1_height, column1_width)
+            column1_pad.clear()
+            column1_pad.addstr(ticker_table + "\n\n" + balance_table)
+            try:
+                column1_pad.refresh(min(table_pos, table_height), 0, header_height, 0, column1_bottom, column1_right)
+            except:
+                pass
+            max_table_pos = table_height+header_height-height if table_height > height else 0
+        else:
+            title_window.resize(height, width)
+            title_window.clear()
+            title_window.addstr("make biggr pls")
+            title_window.refresh()
+            max_table_pos = 0
+            #balance_table_pad.refresh(table_pos,0,header_height+ticker_table_height-table_pos,0,balance_table_draw_height,drawing_width)
+
+            prev_table_pos = table_pos
+            prev_width = width
+            prev_height = height
+            #except:
+            #    pass
+        prev_balance_table_width = balance_table_width
+        prev_ticker_table_width = ticker_table_width
         end = time.time()
         elapsed = (end-start)
+
         if (elapsed<s):
             time.sleep(s-elapsed)
 
-# define function for timing last successful request
-def timer(s):
-    while (not stop_all):
-        start = time.time()
-        for i, url in enumerate(URLs_crypto):
-            current = time.time()
-            elapsed_crypto[i] = int(1000*(current-start_crypto[i]))
-        for i, url in enumerate(URLs_stocks):
-            current = time.time()
-            elapsed_stocks[i] = int(1000*(current-start_stocks[i]))
-        end = time.time()
-        elapsed = (end-start)
-        if (elapsed<s):
-            time.sleep(s-elapsed)
-           
+
 # define keylistener function
 def key_listener():
     while True:  # making a loop
@@ -180,11 +263,12 @@ def key_listener():
                     # wait for all threads to stop
                     global stop_all
                     stop_all = True
-                    for i, url in enumerate(URLs_crypto):
-                        threads_crypto[i].join()
-                    crypto_stocks = []
-                    for i, url in enumerate(URLs_stocks):
-                        threads_stocks[i].join()
+                    data_grabber.stop_all = True
+                    #for i, url in enumerate(num_coinmarketcap_urls):
+                    #    threads_crypto[i].join()
+                    #crypto_stocks = []
+                    #for i, url in enumerate(num_marketwatch_urls):
+                    #    threads_stocks[i].join()
                     # clear screen, reset cursor visibility and close programm
                     clear()
                     curses.curs_set(1)
@@ -193,15 +277,19 @@ def key_listener():
                 # don't do anything if non char key was pressed
                 pass
             # scroll with up/down buttons
+            #with resize_lock:
             global table_pos
             try:
-                if str(key) == 'KEY_DOWN':
-                    if table_pos < num_crypto_URLs+num_stocks_URLs-(height-header_height-2):
+                if str(key) == 'KEY_DOWN' or str(key) =='j':
+                    #if table_pos < num_coinmarketcap_urls+\
+                    #        num_marketwatch_urls-(height-header_height-2):
+                    global max_table_pos
+                    if table_pos < max_table_pos:
                         table_pos += 1
             except:
                 pass
             try:
-                if str(key) == 'KEY_UP':
+                if str(key) == 'KEY_UP' or str(key) == 'k':
                     if table_pos > 0:
                         table_pos -= 1
             except:
@@ -218,18 +306,30 @@ update_freq = 5.0
 if __name__ == '__main__':
     # initialize threads
     threads_crypto = []
-    for i, url in enumerate(URLs_crypto):
-        x = threading.Thread(target=getPrice_crypto, args=(url,i,update_freq,))
+    for i, url in enumerate(coinmarketcap_urls):
+        x = threading.Thread(target=data_grabber.getPrice_coinmarketcap, args=(url,i,update_freq,))
         threads_crypto.append(x)
         x.start()
     threads_stocks = []
-    for i, url in enumerate(URLs_stocks):
-        x = threading.Thread(target=getPrice_stocks, args=(url,i,update_freq,))
+    for i, url in enumerate(marketwatch_urls):
+        x = threading.Thread(target=data_grabber.getPrice_marketwatch, args=(url,i,update_freq,))
         threads_stocks.append(x)
         x.start()
+    threads_monero_wallets = []
+    for i, monero_wallet_address in enumerate(monero_wallet_addresses):
+        x = threading.Thread(target=data_grabber.setData_MO, args=(monero_wallet_address,i,update_freq,))
+        threads_monero_wallets.append(x)
+        x.start()
+    threads_uphold_cards = []
+    for i, uphold_card in enumerate(uphold_cards):
+        x = threading.Thread(target=data_grabber.setData_Uphold, args=(uphold_token,uphold_card,i,update_freq,))
+        threads_uphold_cards.append(x)
+        x.start()
+    Coinbase_data_thread = threading.Thread(target=data_grabber.setData_Coinbase, args=(coinbase_api_key, coinbase_api_secret, update_freq,))
+    Coinbase_data_thread.start()
     drawing_thread = threading.Thread(target=draw, args=(drawing_freq,))
     drawing_thread.start()
-    timer_thread = threading.Thread(target=timer, args=(timer_freq,))
+    timer_thread = threading.Thread(target=data_grabber.timer, args=(timer_freq,))
     timer_thread.start()
     key_listener_thread = threading.Thread(target=key_listener, args=())
     key_listener_thread.start()
@@ -274,7 +374,7 @@ if __name__ == '__main__':
 #                table_pos -= 1
 #    except:
 #        pass
-#
+
 #
 ## Collect events until released
 #with Listener(
