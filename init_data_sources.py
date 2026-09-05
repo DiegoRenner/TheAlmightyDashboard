@@ -1,39 +1,47 @@
 import json
 import subprocess
-from coinbase.wallet.client import Client
+try:
+    from coinbase.wallet.client import Client
+except ImportError:
+    Client = None
 
 class DataSourceInitializer:
-    monero_wallet_addresses = []
-    num_monero_wallet_addresses = 0
-    set_monero_wallet_addresses = False
+    def __init__(self, path):
+        self.monero_wallet_addresses = []
+        self.num_monero_wallet_addresses = 0
+        self.set_monero_wallet_addresses = False
 
-    uphold_token = ""
-    uphold_cards = []
-    num_uphold_cards = 0
-    set_uphold_token = False
+        self.uphold_token = ""
+        self.uphold_cards = []
+        self.num_uphold_cards = 0
+        self.set_uphold_token = False
 
-    coinbase_api_key = ""
-    coinbase_api_secret = ""
-    coinbase_currencies = []
-    num_coinbase_currencies = 0
-    set_coinbase_api = False
+        self.coinbase_api_key = ""
+        self.coinbase_api_secret = ""
+        self.coinbase_currencies = []
+        self.num_coinbase_currencies = 0
+        self.set_coinbase_api = False
 
-    marketwatch_urls = []
-    num_marketwatch_urls = 0
-    set_marketwatch_urls = False
+        self.marketwatch_urls = []
+        self.num_marketwatch_urls = 0
+        self.set_marketwatch_urls = False
 
-    coinmarketcap_urls = []
-    num_coinmarketcap_urls = 0
-    set_coinmarketcap_urls = False
+        self.coinmarketcap_urls = []
+        self.num_coinmarketcap_urls = 0
+        self.set_coinmarketcap_urls = False
 
-    data_sources_dict = {}
+        self.data_sources_dict = {}
+        self.read_json_config(path)
 
-    def read_json_config(self,path):
-
+    def read_json_config(self, path):
         with open(path) as json_file:
             data = json.load(json_file)
             if 'monero_wallet_address' in data:
-                self.monero_wallet_addresses.append(data['monero_wallet_address'])
+                addr = data['monero_wallet_address']
+                if isinstance(addr, list):
+                    self.monero_wallet_addresses.extend(addr)
+                else:
+                    self.monero_wallet_addresses.append(addr)
                 self.set_monero_wallet_addresses = True
                 self.num_monero_wallet_addresses = len(self.monero_wallet_addresses)
             if 'uphold_token' in data:
@@ -49,8 +57,16 @@ class DataSourceInitializer:
                 self.marketwatch_urls = data['marketwatch_urls']
                 self.num_marketwatch_urls = len(self.marketwatch_urls)
                 self.set_marketwatch_urls = True
+            elif 'stock_symbols' in data:
+                self.marketwatch_urls = data['stock_symbols']
+                self.num_marketwatch_urls = len(self.marketwatch_urls)
+                self.set_marketwatch_urls = True
             if 'coinmarketcap_urls' in data:
                 self.coinmarketcap_urls = data['coinmarketcap_urls']
+                self.num_coinmarketcap_urls = len(self.coinmarketcap_urls)
+                self.set_coinmarketcap_urls = True
+            elif 'crypto_symbols' in data:
+                self.coinmarketcap_urls = data['crypto_symbols']
                 self.num_coinmarketcap_urls = len(self.coinmarketcap_urls)
                 self.set_coinmarketcap_urls = True
 
@@ -70,9 +86,6 @@ class DataSourceInitializer:
                 "num_coinmarketcap_urls": self.num_coinmarketcap_urls
             }
 
-    def __init__(self, path):
-        self.read_json_config(path)
-
     def get_active_data_sources(self):
         return (self.set_monero_wallet_addresses, self.set_uphold_token,
                 self.set_coinbase_api, self.set_marketwatch_urls,
@@ -82,25 +95,34 @@ class DataSourceInitializer:
         return self.data_sources_dict
 
     def set_uphold_cards(self):
-        bashCommand = ["curl", "-s", "https://api.uphold.com/v0/me/cards",
-                       "-H", "Authorization: Bearer " + self.uphold_token]
-        process = subprocess.Popen(bashCommand, stdout=subprocess.PIPE)
-        output, error = process.communicate()
-        output = json.loads(output.decode("utf-8"))
-        for card in output:
-            if float(card["balance"]) > 0:
-                self.uphold_cards.append(card["currency"])
-                self.num_uphold_cards += 1
+        try:
+            bashCommand = ["curl", "-s", "https://api.uphold.com/v0/me/cards",
+                           "-H", "Authorization: Bearer " + self.uphold_token]
+            process = subprocess.Popen(bashCommand, stdout=subprocess.PIPE)
+            output, error = process.communicate()
+            data = json.loads(output.decode("utf-8"))
+            if isinstance(data, list):
+                for card in data:
+                    if float(card.get("balance", 0)) > 0:
+                        self.uphold_cards.append(card["currency"])
+                        self.num_uphold_cards += 1
+        except Exception:
+            pass
 
     def set_coinbase_currencies(self):
-        API_KEY = self.coinbase_api_key
-        API_SECRET = self.coinbase_api_secret
-        client = Client(API_KEY, API_SECRET)
-        accounts = client.get_accounts()
-        for currency in accounts["data"]:
-            if float(currency["balance"]["amount"]) > 0:
-                self.coinbase_currencies.append(currency["balance"]["currency"])
-                self.num_coinbase_currencies += 1
+        if Client is None:
+            return
+        try:
+            API_KEY = self.coinbase_api_key
+            API_SECRET = self.coinbase_api_secret
+            client = Client(API_KEY, API_SECRET)
+            accounts = client.get_accounts()
+            for currency in accounts.get("data", []):
+                if float(currency.get("balance", {}).get("amount", 0)) > 0:
+                    self.coinbase_currencies.append(currency["balance"]["currency"])
+                    self.num_coinbase_currencies += 1
+        except Exception:
+            pass
 
 
 

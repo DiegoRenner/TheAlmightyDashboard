@@ -1,9 +1,11 @@
+import os
 import unittest
 from init_data_sources import DataSourceInitializer
 
 
 class MyTestCase(unittest.TestCase):
-    dataSourceInitializer = DataSourceInitializer("config.json")
+    config_path = "config.json" if os.path.exists("config.json") else "config_no_accounts.json"
+    dataSourceInitializer = DataSourceInitializer(config_path)
     def test_get_num_uphold_cards(self):
         print(self.dataSourceInitializer.uphold_cards)
         self.assertEqual(True, True)  # add assertion here
