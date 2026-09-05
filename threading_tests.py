@@ -1,14 +1,15 @@
+import os
 import unittest
 import time
 import threading
 import numpy as np
 from init_data_sources import DataSourceInitializer
 from data_grabbers import DataGrabber
-#from dashboard_threaded import draw
 
 
 class MyTestCase(unittest.TestCase):
-    dataSourceInitializer = DataSourceInitializer("config.json")
+    config_path = "config.json" if os.path.exists("config.json") else "config_no_accounts.json"
+    dataSourceInitializer = DataSourceInitializer(config_path)
     data_sources_dict = dataSourceInitializer.get_data_sources()
     data_grabber = DataGrabber(data_sources_dict)
     num_marketwatch_urls = data_sources_dict["num_marketwatch_urls"]
@@ -52,16 +53,13 @@ class MyTestCase(unittest.TestCase):
         Coinbase_data_thread = threading.Thread(target=self.data_grabber.setData_Coinbase,
                                                 args=(self.coinbase_api_key, self.coinbase_api_secret, self.update_freq,))
         Coinbase_data_thread.start()
-        time.sleep(5)
+        time.sleep(3)
+        self.data_grabber.stop_all = True
         print(self.data_grabber.get_ticker_table())
         print(self.data_grabber.get_balance_table().rsplit("\n")[1].__len__())
         balance_table_widths = [self.data_grabber.get_balance_table().rsplit("\n")[i].__len__() for i in np.arange(len(self.data_grabber.get_balance_table().rsplit("\n")))]
         print(max(balance_table_widths))
         print(self.data_grabber.names_coinmarketcap)
-        #print(self.data_grabber.get_ticker_table())
-
-    def test_drawing_thread(self):
-        draw(0.5, False)
 
 
 

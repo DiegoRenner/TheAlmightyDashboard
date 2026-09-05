@@ -6,8 +6,6 @@ import curses
 import threading
 from init_data_sources import DataSourceInitializer
 from data_grabbers import DataGrabber
-from pynput.keyboard import Key, Listener
-import keyboard
 
 if len(sys.argv) > 1:
     path = sys.argv[1]
@@ -269,10 +267,16 @@ def key_listener():
                     #crypto_stocks = []
                     #for i, url in enumerate(num_marketwatch_urls):
                     #    threads_stocks[i].join()
-                    # clear screen, reset cursor visibility and close programm
+                    # clear screen, reset cursor visibility and close program
                     clear()
-                    curses.curs_set(1)
-                    os._exit(1)
+                    try:
+                        curses.echo()
+                        curses.nocbreak()
+                        curses.curs_set(1)
+                        curses.endwin()
+                    except:
+                        pass
+                    os._exit(0)
             except:
                 # don't do anything if non char key was pressed
                 pass
@@ -325,8 +329,9 @@ if __name__ == '__main__':
         x = threading.Thread(target=data_grabber.setData_Uphold, args=(uphold_token,uphold_card,i,update_freq,))
         threads_uphold_cards.append(x)
         x.start()
-    Coinbase_data_thread = threading.Thread(target=data_grabber.setData_Coinbase, args=(coinbase_api_key, coinbase_api_secret, update_freq,))
-    Coinbase_data_thread.start()
+    if set_coinbase_api:
+        Coinbase_data_thread = threading.Thread(target=data_grabber.setData_Coinbase, args=(coinbase_api_key, coinbase_api_secret, update_freq,))
+        Coinbase_data_thread.start()
     drawing_thread = threading.Thread(target=draw, args=(drawing_freq,))
     drawing_thread.start()
     timer_thread = threading.Thread(target=data_grabber.timer, args=(timer_freq,))
